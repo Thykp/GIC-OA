@@ -1,11 +1,30 @@
+import { CafeRepository } from '../repositories/CafeRepository';
+import { NewCafeDto, UpdateCafeDto } from '../models/dto';
+import { Cafe } from '../models/Cafe';
+
 export class CafeService {
-    constructor(private repo: any) {}
-    async list(location?: string) {
-      let query = this.repo.query().select('*');
-      if (location) query = query.eq('location', location);
-      const { data } = await query;
-      // count employees, sort, map…
-      return data;
-    }
+  constructor(private repo: CafeRepository) {}
+
+  async list(location?: string): Promise<(Cafe & { employees: number })[]> {
+    const cafes = await this.repo.findAll(location);
+    const withCounts = await Promise.all(
+      cafes.map(async (c) => ({
+        ...c,
+        employees: await this.repo.countEmployees(c.id)
+      }))
+    );
+    return withCounts.sort((a, b) => b.employees - a.employees);
   }
-  
+
+  async create(dto: NewCafeDto): Promise<Cafe> {
+    return this.repo.create(dto);
+  }
+
+  async update(dto: UpdateCafeDto): Promise<Cafe> {
+    return this.repo.update(dto.id, dto);
+  }
+
+  async remove(id: string): Promise<void> {
+    return this.repo.remove(id);
+  }
+}
