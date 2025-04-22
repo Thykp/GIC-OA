@@ -1,7 +1,8 @@
+// src/services/EmployeeService.ts
+
 import { EmployeeRepository } from '../repositories/EmployeeRepository';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Employee } from '../models/Employee';
-import { Employment } from '../models/Employment';
 
 interface EmployeeWithMeta extends Employee {
   days_worked: number;
@@ -9,29 +10,26 @@ interface EmployeeWithMeta extends Employee {
 }
 
 export class EmployeeService {
+  // Param order: first the repo, then the supabase client
   constructor(
-    private repo: EmployeeRepository,
+    private employeeRepository: EmployeeRepository,
     private supabase: SupabaseClient
   ) {}
 
-  private async loadCafes() {
-    const { data } = await this.supabase.from('cafes').select('id, name');
-    return data as { id: string; name: string }[];
-  }
-
+  /** GET /employees?cafe= */
   async list(cafeName?: string): Promise<EmployeeWithMeta[]> {
     const [emps, empships, cafes] = await Promise.all([
-      this.repo.findAllEmployees(),
-      this.repo.findAllEmployments(),
-      this.loadCafes()
+      this.employeeRepository.findAllEmployees(),
+      this.employeeRepository.findAllEmployments(),
+      this.supabase.from('cafes').select('id, name').then((r) => r.data || []),
     ]);
 
-    let result: EmployeeWithMeta[] = emps.map((e) => {
+    let result = emps.map((e) => {
       const rel = empships.find((r) => r.employee_id === e.id);
       if (rel) {
         const cafe = cafes.find((c) => c.id === rel.cafe_id)?.name || '';
         const days = Math.floor(
-          (Date.now() - new Date(rel.start_date).getTime()) / 86400000
+          (Date.now() - new Date(rel.start_date).getTime()) / 86_400_000
         );
         return { ...e, days_worked: days, cafe };
       }
@@ -44,6 +42,7 @@ export class EmployeeService {
     return result.sort((a, b) => b.days_worked - a.days_worked);
   }
 
+  /** POST /employees */
   async create(dto: {
     id: string;
     name: string;
@@ -52,12 +51,17 @@ export class EmployeeService {
     gender: 'Male' | 'Female';
     cafe_id: string;
     start_date: string;
-  }) {
-    const emp = await this.repo.createEmployee(dto);
-    await this.repo.assignToCafe(dto.id, dto.cafe_id, dto.start_date);
+  }): Promise<Employee> {
+    const emp = await this.employeeRepository.createEmployee(dto);
+    await this.employeeRepository.assignToCafe(
+      dto.id,
+      dto.cafe_id,
+      dto.start_date
+    );
     return emp;
   }
 
+  /** PUT /employees */
   async update(dto: {
     id: string;
     name: string;
@@ -66,13 +70,18 @@ export class EmployeeService {
     gender: 'Male' | 'Female';
     cafe_id: string;
     start_date: string;
-  }) {
-    const emp = await this.repo.updateEmployee(dto);
-    await this.repo.updateAssignment(dto.id, dto.cafe_id, dto.start_date);
+  }): Promise<Employee> {
+    const emp = await this.employeeRepository.updateEmployee(dto);
+    await this.employeeRepository.updateAssignment(
+      dto.id,
+      dto.cafe_id,
+      dto.start_date
+    );
     return emp;
   }
 
-  async remove(id: string) {
-    return this.repo.removeEmployee(id);
+  /** DELETE /employees */
+  async remove(id: string): Promise<void> {
+    return this.employeeRepository.removeEmployee(id);
   }
 }

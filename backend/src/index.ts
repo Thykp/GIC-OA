@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import express from 'express';
 import dotenv from 'dotenv';
-import { createContainer, asClass, asValue } from 'awilix';
+import { createContainer, asClass, asValue, InjectionMode } from 'awilix';
 import { scopePerRequest } from 'awilix-express';
 import client from 'prom-client';
 
@@ -26,19 +26,24 @@ app.get('/metrics', (_req, res) => {
 });
 
 // DI container
-const container = createContainer();
-container.register({
-  supabase: asValue(
-    require('@supabase/supabase-js').createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_ANON_KEY!
-    )
-  ),
-  cafeRepository: asClass(CafeRepository).scoped(),
-  cafeService: asClass(CafeService).scoped(),
-  employeeRepository: asClass(EmployeeRepository).scoped(),
-  employeeService: asClass(EmployeeService).scoped()
-});
+const container = createContainer({
+    injectionMode: InjectionMode.CLASSIC
+  });
+  
+  container.register({
+    supabase: asValue(
+        require('@supabase/supabase-js').createClient(
+          process.env.SUPABASE_URL!,
+          process.env.SUPABASE_ANON_KEY!
+        )
+      ),
+  
+    cafeRepository:    asClass(CafeRepository).scoped(),
+    cafeService:       asClass(CafeService).scoped(),
+  
+    employeeRepository: asClass(EmployeeRepository).scoped(),
+    employeeService:    asClass(EmployeeService).scoped(),
+  });
 app.use(scopePerRequest(container));
 
 // Mount routes
